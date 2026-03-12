@@ -59,7 +59,7 @@ func (t *Tailer) StartProducer(ctx context.Context) <-chan SearchResponseHitsHit
 			request := opensearchapi.SearchRequest{
 				Index: []string{t.ClibanaConfig.Index},
 				Body:  requestBody,
-				Sort:  []string{"@timestamp:asc"},
+				Sort:  []string{"collector_tstamp:asc"},
 				Size:  &size,
 			}
 
@@ -118,7 +118,7 @@ func (t *Tailer) buildSearchRequestBody() *strings.Reader {
 					},
 					map[string]interface{}{
 						"range": map[string]interface{}{
-							"@timestamp": map[string]interface{}{
+							t.ClibanaConfig.Search.TimestampField: map[string]interface{}{
 								"gte": t.ClibanaConfig.Search.Start,
 								"lte": t.ClibanaConfig.Search.End,
 							},

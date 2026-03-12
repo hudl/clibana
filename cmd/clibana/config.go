@@ -10,11 +10,12 @@ import (
 )
 
 type SearchConfig struct {
-	Fields fieldList `arg:"-F,env:CLIBANA_FIELDS" help:"Comma-separated list of fields to output" placeholder:"FIELD_NAME,..."`
-	Follow bool      `arg:"-f" help:"Enable live tailing of logs"`
-	Query  string    `arg:"positional" default:"*" help:"Query string"`
-	Start  string    `arg:"-s" default:"now-5m" help:"Start time"`
-	End    string    `arg:"-e" default:"now" help:"End time"`
+	Fields         fieldList `arg:"-F,env:CLIBANA_FIELDS" help:"Comma-separated list of fields to output" placeholder:"FIELD_NAME,..."`
+	Follow         bool      `arg:"-f" help:"Enable live tailing of logs"`
+	Query          string    `arg:"positional" default:"*" help:"Query string"`
+	Start          string    `arg:"-s" default:"now-5m" help:"Start time"`
+	End            string    `arg:"-e" default:"now" help:"End time"`
+	TimestampField string    `arg:"-t,--timestamp-field,env:CLIBANA_TIMESTAMP_FIELD" default:"@timestamp" help:"Timestamp field name for time range filtering"`
 }
 
 type MappingsConfig struct {
