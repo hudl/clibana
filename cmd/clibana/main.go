@@ -5,7 +5,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/zalando/go-keyring"
 )
 
 const (
@@ -22,7 +25,7 @@ const (
 )
 
 var (
-	version = "1.2.0"
+	version = "1.3.0"
 	commit  = ""
 	date    = ""
 )
@@ -34,7 +37,37 @@ func FatalError(err error) {
 	os.Exit(1)
 }
 
+func handleKeychainSet() {
+	for i, arg := range os.Args[1:] {
+		if arg == "--password-keychain-set" {
+			if i+1 >= len(os.Args[1:]) {
+				FatalError(fmt.Errorf("--password-keychain-set requires SERVICE:ACCOUNT argument"))
+			}
+			target := os.Args[i+2]
+			parts := strings.SplitN(target, ":", 2)
+			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+				FatalError(fmt.Errorf("--password-keychain-set requires format SERVICE:ACCOUNT (e.g., snowplow-kibana:hudl_admin)"))
+			}
+			password, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				FatalError(fmt.Errorf("failed to read password from stdin: %w", err))
+			}
+			pw := strings.TrimSpace(string(password))
+			if pw == "" {
+				FatalError(fmt.Errorf("empty password received on stdin"))
+			}
+			if err := keyring.Set(parts[0], parts[1], pw); err != nil {
+				FatalError(fmt.Errorf("failed to store password in keychain (service=%q, account=%q): %w", parts[0], parts[1], err))
+			}
+			fmt.Fprintln(os.Stderr, "Password stored in keychain")
+			os.Exit(0)
+		}
+	}
+}
+
 func main() {
+	handleKeychainSet()
+
 	clibanaConfig := NewClibanaConfig()
 
 	if clibanaConfig.Debug {
