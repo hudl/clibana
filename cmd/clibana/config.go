@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/alexflint/go-arg"
+	"github.com/zalando/go-keyring"
 )
 
 type SearchConfig struct {
@@ -31,7 +33,9 @@ type ClibanaConfig struct {
 	Index        string          `arg:"-i,required,env:CLIBANA_INDEX" help:"Index pattern"`
 	AuthType     string          `arg:"-a,env:CLIBANA_AUTH" help:"Authentication type: aws, basic, or cookie"`
 	Username     string          `arg:"-U,env:CLIBANA_USER" help:"Username for basic authentication"`
-	PasswordFile string          `arg:"--password-file" help:"Path to file containing password for basic authentication"`
+	PasswordFile     string          `arg:"--password-file" help:"Path to file containing password for basic authentication"`
+	PasswordStdin    bool            `arg:"--password-stdin" help:"Read password from stdin"`
+	PasswordKeychain string          `arg:"--password-keychain" help:"Read password from system keychain (format: SERVICE:ACCOUNT)" placeholder:"SERVICE:ACCOUNT"`
 	CookieFile   string          `arg:"-C,--cookie-file,env:CLIBANA_COOKIE_FILE" help:"Path to Netscape cookie file for cookie-based auth via dashboard proxy"`
 	ServerType   string          `arg:"-S,--server-type,env:CLIBANA_SERVER_TYPE" help:"Server type: opensearch or elasticsearch (auto-detected if not set)"`
 	Password     string          `arg:"-,env:CLIBANA_PASSWORD"`
@@ -46,13 +50,42 @@ func NewClibanaConfig() ClibanaConfig {
 
 	arg.MustParse(&clibanaConfig)
 
-	// Читаем пароль из файла если указан
+	// Read password from file, stdin, or keychain (mutually exclusive)
+	passwordSources := 0
+	if clibanaConfig.PasswordFile != "" {
+		passwordSources++
+	}
+	if clibanaConfig.PasswordStdin {
+		passwordSources++
+	}
+	if clibanaConfig.PasswordKeychain != "" {
+		passwordSources++
+	}
+	if passwordSources > 1 {
+		FatalError(fmt.Errorf("--password-file, --password-stdin, and --password-keychain are mutually exclusive"))
+	}
 	if clibanaConfig.PasswordFile != "" {
 		password, err := os.ReadFile(clibanaConfig.PasswordFile)
 		if err != nil {
 			FatalError(fmt.Errorf("failed to read password file: %w", err))
 		}
 		clibanaConfig.Password = strings.TrimSpace(string(password))
+	} else if clibanaConfig.PasswordStdin {
+		password, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			FatalError(fmt.Errorf("failed to read password from stdin: %w", err))
+		}
+		clibanaConfig.Password = strings.TrimSpace(string(password))
+	} else if clibanaConfig.PasswordKeychain != "" {
+		parts := strings.SplitN(clibanaConfig.PasswordKeychain, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			FatalError(fmt.Errorf("--password-keychain requires format SERVICE:ACCOUNT (e.g., snowplow-kibana:hudl_admin)"))
+		}
+		password, err := keyring.Get(parts[0], parts[1])
+		if err != nil {
+			FatalError(fmt.Errorf("failed to read password from keychain (service=%q, account=%q): %w", parts[0], parts[1], err))
+		}
+		clibanaConfig.Password = password
 	}
 
 	// Парсим URL для определения схемы

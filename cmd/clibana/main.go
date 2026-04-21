@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	version = "dev"
+	version = "1.2.0"
 	commit  = ""
 	date    = ""
 )
