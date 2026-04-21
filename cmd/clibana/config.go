@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -31,7 +32,8 @@ type ClibanaConfig struct {
 	Index        string          `arg:"-i,required,env:CLIBANA_INDEX" help:"Index pattern"`
 	AuthType     string          `arg:"-a,env:CLIBANA_AUTH" help:"Authentication type: aws, basic, or cookie"`
 	Username     string          `arg:"-U,env:CLIBANA_USER" help:"Username for basic authentication"`
-	PasswordFile string          `arg:"--password-file" help:"Path to file containing password for basic authentication"`
+	PasswordFile  string          `arg:"--password-file" help:"Path to file containing password for basic authentication"`
+	PasswordStdin bool            `arg:"--password-stdin" help:"Read password from stdin"`
 	CookieFile   string          `arg:"-C,--cookie-file,env:CLIBANA_COOKIE_FILE" help:"Path to Netscape cookie file for cookie-based auth via dashboard proxy"`
 	ServerType   string          `arg:"-S,--server-type,env:CLIBANA_SERVER_TYPE" help:"Server type: opensearch or elasticsearch (auto-detected if not set)"`
 	Password     string          `arg:"-,env:CLIBANA_PASSWORD"`
@@ -46,11 +48,20 @@ func NewClibanaConfig() ClibanaConfig {
 
 	arg.MustParse(&clibanaConfig)
 
-	// Читаем пароль из файла если указан
+	// Read password from file or stdin
+	if clibanaConfig.PasswordFile != "" && clibanaConfig.PasswordStdin {
+		FatalError(fmt.Errorf("--password-file and --password-stdin are mutually exclusive"))
+	}
 	if clibanaConfig.PasswordFile != "" {
 		password, err := os.ReadFile(clibanaConfig.PasswordFile)
 		if err != nil {
 			FatalError(fmt.Errorf("failed to read password file: %w", err))
+		}
+		clibanaConfig.Password = strings.TrimSpace(string(password))
+	} else if clibanaConfig.PasswordStdin {
+		password, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			FatalError(fmt.Errorf("failed to read password from stdin: %w", err))
 		}
 		clibanaConfig.Password = strings.TrimSpace(string(password))
 	}
